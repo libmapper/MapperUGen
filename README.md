@@ -3,7 +3,7 @@ A SuperCollider UGen for using libmapper
 
 ## Installation
 * Build and install [libmapper](https://github.com/libmapper/libmapper)
-* Unzip MapperUGen.zip from [releases](https://github.com/mathiasbredholt/MapperUGen) into SuperCollider extensions folder (Platform.userExtensionDir)
+* Unzip MapperUGen.zip from [releases](https://github.com/mathiasbredholt/MapperUGen/releases) into SuperCollider extensions folder (Platform.userExtensionDir)
 
 ## Compile from source
 * Build and install [libmapper](https://github.com/libmapper/libmapper)
