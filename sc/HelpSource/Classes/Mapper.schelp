@@ -23,7 +23,7 @@ s.waitForBoot({
 // Output signal
 (
 {
-    MapperOutput.kr(SinOsc.kr(1).range(0, 1), 'sine', 0, 1);
+    MapperOutput.kr(SinOsc.kr(1), 'sine', -1, 1);
 }.play;
 )
 
