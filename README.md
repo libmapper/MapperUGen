@@ -9,7 +9,6 @@ A SuperCollider UGen for using libmapper
 * Build and install [libmapper](https://github.com/libmapper/libmapper)
 * Run
 ```
-mkdir build
 mkdir build && cd build
 cmake -DSC_PATH=/path/to/sc/ ..
 cmake --build . --target install
