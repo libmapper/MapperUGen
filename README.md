@@ -10,11 +10,6 @@ A SuperCollider UGen for using libmapper
 * Run
 ```
 mkdir build && cd build
-cmake -DSC_PATH=/path/to/sc/ ..
+cmake -DSC_PATH=/path/to/sc/ -DSUPERNOVA=ON ..
 cmake --build . --target install
 ```
-
-### CMake options
-* Build supernova-plugin
-* (default 'OFF')
-* ```cmake -DSUPERNOVA=ON ..```
