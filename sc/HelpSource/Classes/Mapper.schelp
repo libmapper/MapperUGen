@@ -11,12 +11,26 @@ private:: categories
 METHOD:: enable, disable
 
 EXAMPLES::
-s.boot;
-Mapper.enable;
-
+code::
 (
-Ndef(\map, {
-    MapperOutput.kr(SinOsc.kr(1).range(0, 1), 'lfnoise', 0, 1);
-    Splay.ar(RLPF.ar(Saw.ar(50), MapperInput.kr('mod').lincurve(0, 1, 50, 10e3), 0.2));
-}).play;
+s.waitForBoot({
+    Mapper.enable;
+});
 )
+
+// wait for libmapper ready message
+
+// Output signal
+(
+{
+    MapperOutput.kr(SinOsc.kr(1).range(0, 1), 'sine', 0, 1);
+}.play;
+)
+
+// Input signal
+(
+{
+    RLPF.ar(Saw.ar(50), MapperInput.kr('mod', 20, 20000), 0.2).dup * 0.2;
+}.play
+)
+::

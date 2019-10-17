@@ -11,6 +11,7 @@ static InterfaceTable *ft;
 
 void poll_thread_handler() {
     dev = new mapper::Device("SuperCollider");
+    Print("Mapper: libmapper ready!\n");
     while (dev) {
         dev->poll(10);
     }
@@ -153,7 +154,7 @@ void MapperEnabler_Ctor(MapperEnabler* unit) {
     if (!dev) {
         poll_thread = new std::thread(poll_thread_handler);
     } else {
-        Print("MapperEnabler: libmapper already enabled.");
+        Print("Mapper: libmapper already enabled.\n");
     }
     SETCALC(MapperEnabler_next);
 }
@@ -161,7 +162,6 @@ void MapperEnabler_Ctor(MapperEnabler* unit) {
 void MapperEnabler_next(MapperEnabler* unit, int inNumSamples) {}
 
 // Mapper disabler
-// For deleting the mapper device
 
 struct MapperDisabler : public Unit {};
 
