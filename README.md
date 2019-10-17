@@ -16,6 +16,6 @@ cmake --build . --target install
 ```
 
 ### CMake options
-* Build supernova-plugins
+* Build supernova-plugin
 * (default 'OFF')
 * ```cmake -DSUPERNOVA=ON ..```
