@@ -1,0 +1,22 @@
+TITLE:: Mapper
+summary:: interface for using libmapper with SuperCollider
+categories:: UGens>Synth control
+
+DESCRIPTION::
+An interface for using libmapper with SuperCollider
+
+CLASSMETHODS::
+private:: categories
+
+METHOD:: enable, disable
+
+EXAMPLES::
+s.boot;
+Mapper.enable;
+
+(
+Ndef(\map, {
+    MapperOutput.kr(SinOsc.kr(1).range(0, 1), 'lfnoise', 0, 1);
+    Splay.ar(RLPF.ar(Saw.ar(50), MapperInput.kr('mod').lincurve(0, 1, 50, 10e3), 0.2));
+}).play;
+)
