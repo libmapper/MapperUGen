@@ -30,7 +30,7 @@ s.waitForBoot({
 // Input signal
 (
 {
-    RLPF.ar(Saw.ar(50), MapperInput.kr('mod', 20, 20000), 0.2).dup * 0.2;
+    RLPF.ar(Saw.ar(50), MapperInput.kr('filter_cutoff', 20, 20000), 0.2).dup * 0.2;
 }.play
 )
 ::
