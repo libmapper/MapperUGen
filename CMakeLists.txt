@@ -33,6 +33,8 @@ else()
     set(INSTALL_DESTINATION_DISTRO "MapperUGen")
 endif()
 
+set(PLUGIN_DIR "plugins")
+
 set(CMAKE_SHARED_MODULE_PREFIX "")
 if(APPLE OR WIN32)
 set(CMAKE_SHARED_MODULE_SUFFIX ".scx")
