@@ -14,6 +14,8 @@ if (APPLE)
   set(CMAKE_INSTALL_PREFIX "${CMAKE_BINARY_DIR}")
 endif()
 
+set(SC_PATH supercollider)
+
 include_directories(${SC_PATH}/include/plugin_interface)
 include_directories(${SC_PATH}/include/common)
 include_directories(${SC_PATH}/common)
