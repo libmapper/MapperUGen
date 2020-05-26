@@ -16,12 +16,17 @@ endif()
 
 find_path(SC_PATH NAMES plugin_interface/SC_PlugIn.h PATH_SUFFIXES SuperCollider)
 if(NOT SC_PATH)
-    message(FATAL_ERROR "SuperCollider headers not found. Please install SuperCollider.")
+    set(SC_PATH supercollider)
+    message("Using submodule, make sure that this repository is cloned with the --recursive option")
 else()
     message("Found SuperCollider headers: ${SC_PATH}")
 endif()
+
 include_directories(${SC_PATH}/plugin_interface)
+include_directories(${SC_PATH}/include/plugin_interface)
+include_directories(${SC_PATH}/include/common)
 include_directories(${SC_PATH}/common)
+
 
 include_directories(/usr/local/include)
 
