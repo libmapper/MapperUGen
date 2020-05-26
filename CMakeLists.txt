@@ -14,9 +14,15 @@ if (APPLE)
   set(CMAKE_INSTALL_PREFIX "${CMAKE_BINARY_DIR}")
 endif()
 
-include_directories(${SC_PATH}/include/plugin_interface)
-include_directories(${SC_PATH}/include/common)
+find_path(SC_PATH NAMES plugin_interface/SC_PlugIn.h PATH_SUFFIXES SuperCollider)
+if(NOT SC_PATH)
+    message(FATAL_ERROR "SuperCollider headers not found. Please install SuperCollider.")
+else()
+    message("Found SuperCollider headers: ${SC_PATH}")
+endif()
+include_directories(${SC_PATH}/plugin_interface)
 include_directories(${SC_PATH}/common)
+
 include_directories(/usr/local/include)
 
 if (CMAKE_SYSTEM_NAME MATCHES "Linux|.*BSD|DragonFly")
