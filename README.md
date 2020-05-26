@@ -8,7 +8,15 @@ A SuperCollider UGen for using libmapper
 
 ## Compile from source
 * Build and install [libmapper](https://github.com/libmapper/libmapper)
-* Run
+### GNU/Linux
+```
+git clone https://github.com/mathiasbredholt/MapperUGen.git
+cd MapperUGen
+mkdir build && cd build
+cmake -DSUPERNOVA=ON ..
+cmake --build . --target install
+```
+### macOS/Windows
 ```
 git clone --recursive https://github.com/mathiasbredholt/MapperUGen.git
 cd MapperUGen
