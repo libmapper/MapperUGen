@@ -52,13 +52,6 @@ set(CMAKE_SHARED_MODULE_SUFFIX ".scx")
 endif()
 
 option(SUPERNOVA "Build plugins for supernova" OFF)
-if (SUPERNOVA)
-    include_directories(${SC_PATH}/external_libraries/nova-tt)
-    # actually just boost.atomic
-    include_directories(${SC_PATH}/external_libraries/boost)
-    include_directories(${SC_PATH}/external_libraries/boost_lockfree)
-    include_directories(${SC_PATH}/external_libraries/boost-lockfree)
-endif()
 
 option(CPP11 "Build with c++11." ON)
 
