@@ -9,7 +9,9 @@ A SuperCollider UGen for using libmapper
 * Build and install [libmapper](https://github.com/libmapper/libmapper)
 * Run
 ```
+git clone --recursive https://github.com/mathiasbredholt/MapperUGen.git
+cd MapperUGen
 mkdir build && cd build
-cmake -DSC_PATH=/path/to/sc/ -DSUPERNOVA=ON ..
+cmake -DSUPERNOVA=ON ..
 cmake --build . --target install
 ```
