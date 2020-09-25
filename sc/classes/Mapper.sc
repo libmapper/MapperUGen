@@ -14,14 +14,14 @@ Mapper : UGen {
     }
 }
 
-MapperInput : UGen {
+MapIn : UGen {
     *kr { arg name, min = 0, max = 1;
         var ascii = name.ascii;
         ^this.new1('control', *[min, max, ascii.size].addAll(ascii));
     }
 }
 
-MapperOutput : UGen {
+MapOut : UGen {
     *kr { arg in, name, min = 0, max = 1;
         var ascii = name.ascii;
         this.new1('control', *[in, min, max, ascii.size].addAll(ascii));

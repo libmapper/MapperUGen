@@ -1,9 +1,9 @@
 TITLE:: Mapper
-summary:: interface for using libmapper with SuperCollider
+summary:: UGen for using libmapper with SuperCollider server
 categories:: UGens>Synth control
 
 DESCRIPTION::
-An interface for using libmapper with SuperCollider
+Creates a libmapper devices on the SuperCollider server. Input and output signals can be created with the MapIn and MapOut. The signals stay active util the libmapper device is destroyed either by rebooting the server or calling Mapper.disable.
 
 CLASSMETHODS::
 private:: categories
@@ -23,14 +23,14 @@ s.waitForBoot({
 // Output signal
 (
 {
-    MapperOutput.kr(SinOsc.kr(1), 'sine', -1, 1);
+    MapOut.kr(SinOsc.kr(1), \sine, -1, 1);
 }.play;
 )
 
 // Input signal
 (
 {
-    RLPF.ar(Saw.ar(50), MapperInput.kr('filter_cutoff', 20, 20000), 0.2).dup * 0.2;
+    RLPF.ar(Saw.ar(50), MapIn.kr(\ffreq, 20, 20000), 0.2).dup * 0.2;
 }.play
 )
 ::
