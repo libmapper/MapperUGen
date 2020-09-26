@@ -19,14 +19,22 @@
 
 */
 
+#include <mapper/mapper.h>
+
+#include <boost/lockfree/queue.hpp>
+#include <functional>
+#include <queue>
 #include <thread>
 
-#include <mapper/mapper.h>
 #include "SC_PlugIn.h"
 
 static InterfaceTable* ft;
 static mpr_dev dev;
+static bool isReady;
 static std::thread* libmapperThreadHandle;
+
+typedef std::function<void()> Task;
+static boost::lockfree::queue<Task*> taskQueue(128);
 
 void libmapperThread() {
   // TODO(mb): Add option for specifying device name with Mapper.enable(name)
@@ -34,16 +42,25 @@ void libmapperThread() {
   while (!mpr_dev_get_is_ready(dev)) {
     mpr_dev_poll(dev, 10);
   }
+  isReady = true;
   Print("Mapper: libmapper ready!\n");
   while (dev) {
     mpr_dev_poll(dev, 1);
+    // Execute tasks
+    Task* f;
+    if (taskQueue.pop(f)) {
+      (*f)();
+      delete f;
+    }
   }
 }
 
 struct MapperUnit : public Unit {
-  int m_signalNameSize;
-  char* m_signalName;
+  int signalNameSize;
+  char* signalName;
   mpr_sig sig;
+  float sigMin = 0;
+  float sigMax = 1;
   float val = 0;
 };
 
@@ -55,93 +72,106 @@ struct MapperDisabler : public Unit {};
 // Empty DSP function
 static void Unit_next_nop(Unit* unit, int inNumSamples) {}
 
-static void MapIn_Ctor(MapperUnit* unit);
-static void MapIn_next(MapperUnit* unit, int inNumSamples);
+static void MapIn_Ctor(MapIn* unit);
+static void MapIn_Dtor(MapIn* unit);
+static void MapIn_next(MapIn* unit, int inNumSamples);
 
-static void MapOut_Ctor(MapperUnit* unit);
-static void MapOut_next(MapperUnit* unit, int inNumSamples);
+static void MapOut_Ctor(MapOut* unit);
+static void MapOut_Dtor(MapOut* unit);
+static void MapOut_next(MapOut* unit, int inNumSamples);
 
 static void MapperEnabler_Ctor(MapperEnabler* unit);
 static void MapperDisabler_Ctor(MapperDisabler* unit);
 
-void signalHandler(mpr_sig sig, mpr_sig_evt evt, mpr_id inst, int length,
-                   mpr_type type, const void* value, mpr_time time) {
-  MapperUnit* m = (MapperUnit*)mpr_obj_get_prop_as_ptr(sig, MPR_PROP_DATA, 0);
+static void MapIn_signalUpdate(mpr_sig sig, mpr_sig_evt evt, mpr_id inst,
+                               int length, mpr_type type, const void* value,
+                               mpr_time time) {
+  MapIn* m = (MapIn*)mpr_obj_get_prop_as_ptr(sig, MPR_PROP_DATA, 0);
   if (m) {
     m->val = *reinterpret_cast<const float*>(value);
   }
 }
 
-void bindToSignal(MapperUnit* unit, mpr_dir direction, float sigMin,
-                  float sigMax) {
+static void MapperUnit_bindToSignal(MapperUnit* unit, mpr_dir direction) {
   // Search for existing output signal with same name
   mpr_list sigs = mpr_dev_get_sigs(dev, direction);
-  mpr_list_filter(sigs, MPR_PROP_NAME, 0, 1, MPR_STR, unit->m_signalName,
-                  MPR_OP_EQ);
+  sigs = mpr_list_filter(sigs, MPR_PROP_NAME, 0, 1, MPR_STR, unit->signalName,
+                         MPR_OP_EQ);
+
+  mpr_sig_handler* handler = direction == MPR_DIR_IN ? MapIn_signalUpdate : 0;
+  int flags = direction == MPR_DIR_IN ? MPR_SIG_UPDATE : 0;
 
   if (sigs) {
     // Signal exists, bind unit to signal
     unit->sig = *sigs;
+
+    // Update pointer for signal update callback
     mpr_obj_set_prop(unit->sig, MPR_PROP_DATA, 0, 1, MPR_PTR, unit, 0);
+    mpr_sig_set_cb(unit->sig, handler, flags);
+
+    // Update signal metadata if signal range has changed
+    mpr_obj_set_prop(unit->sig, MPR_PROP_MIN, 0, 1, MPR_FLT, &unit->sigMin, 0);
+    mpr_obj_set_prop(unit->sig, MPR_PROP_MAX, 0, 1, MPR_FLT, &unit->sigMax, 0);
   } else {
     // Signal doesn't exist, create new
-    unit->sig = mpr_sig_new(dev, direction, unit->m_signalName, 1, MPR_FLT, 0,
-                            &sigMin, &sigMax, 0, signalHandler, MPR_SIG_UPDATE);
+    Print("Creating signal '%s'\n", unit->signalName);
+    unit->sig = mpr_sig_new(dev, direction, unit->signalName, 1, MPR_FLT, 0,
+                            &unit->sigMin, &unit->sigMax, 0, handler, flags);
     mpr_obj_set_prop(unit->sig, MPR_PROP_DATA, 0, 1, MPR_PTR, unit, 0);
   }
 }
 
 // MapIn
 
-void MapIn_Ctor(MapperUnit* unit) {
-  float sigMin = IN0(0);
-  float sigMax = IN0(1);
+void MapIn_Ctor(MapIn* unit) {
+  unit->val = 0;
+  SETCALC(MapIn_next);
 
-  unit->m_signalNameSize = IN0(2);
-  const int signalNameAllocSize = (unit->m_signalNameSize + 3) * sizeof(char);
+  unit->sigMin = IN0(0);
+  unit->sigMax = IN0(1);
+
+  unit->signalNameSize = IN0(2);
+  const int signalNameAllocSize = (unit->signalNameSize + 3) * sizeof(char);
 
   char* chunk =
       reinterpret_cast<char*>(RTAlloc(unit->mWorld, signalNameAllocSize));
 
   if (!chunk) {
     Print("MapIn: RT memory allocation failed\n");
-    SETCALC(Unit_next_nop);
     return;
   }
 
-  unit->m_signalName = chunk;
-  for (int i = 0; i < unit->m_signalNameSize; i++) {
-    unit->m_signalName[i] = static_cast<char>(IN0(3 + i));
+  unit->signalName = chunk;
+  for (int i = 0; i < unit->signalNameSize; i++) {
+    unit->signalName[i] = static_cast<char>(IN0(3 + i));
   }
-  unit->m_signalName[unit->m_signalNameSize] = 0;
+  unit->signalName[unit->signalNameSize] = 0;
 
   if (dev) {
-    bindToSignal(unit, MPR_DIR_IN, sigMin, sigMax);
+    taskQueue.push(
+        new Task([=]() { MapperUnit_bindToSignal(unit, MPR_DIR_IN); }));
   } else {
     Print("MapIn: libmapper not enabled\n");
-    SETCALC(Unit_next_nop);
-    return;
   }
 
-  RTFree(unit->mWorld, unit->m_signalName);
-
-  SETCALC(MapIn_next);
   MapIn_next(unit, 1);
 }
 
-void MapIn_next(MapperUnit* unit, int inNumSamples) {
+void MapIn_Dtor(MapIn* unit) { RTFree(unit->mWorld, unit->signalName); }
+
+void MapIn_next(MapIn* unit, int inNumSamples) {
   float* out = OUT(0);
   *out = unit->val;
 }
 
 // MapOut
 
-void MapOut_Ctor(MapperUnit* unit) {
-  float sigMin = IN0(1);
-  float sigMax = IN0(2);
+void MapOut_Ctor(MapOut* unit) {
+  unit->sigMin = IN0(1);
+  unit->sigMax = IN0(2);
 
-  unit->m_signalNameSize = IN0(3);
-  const int signalNameAllocSize = (unit->m_signalNameSize + 4) * sizeof(char);
+  unit->signalNameSize = IN0(3);
+  const int signalNameAllocSize = (unit->signalNameSize + 4) * sizeof(char);
 
   char* chunk =
       reinterpret_cast<char*>(RTAlloc(unit->mWorld, signalNameAllocSize));
@@ -152,35 +182,37 @@ void MapOut_Ctor(MapperUnit* unit) {
     return;
   }
 
-  unit->m_signalName = chunk;
-  for (int i = 0; i < unit->m_signalNameSize; i++) {
-    unit->m_signalName[i] = static_cast<char>(IN0(4 + i));
+  unit->signalName = chunk;
+  for (int i = 0; i < unit->signalNameSize; i++) {
+    unit->signalName[i] = static_cast<char>(IN0(4 + i));
   }
-  unit->m_signalName[unit->m_signalNameSize] = 0;
+  unit->signalName[unit->signalNameSize] = 0;
 
-  if (dev) {
-    bindToSignal(unit, MPR_DIR_OUT, sigMin, sigMax);
+  if (isReady) {
+    taskQueue.push(
+        new Task([=]() { MapperUnit_bindToSignal(unit, MPR_DIR_IN); }));
   } else {
     Print("MapOut: libmapper not enabled\n");
     SETCALC(Unit_next_nop);
-    return;
   }
-
-  RTFree(unit->mWorld, unit->m_signalName);
 
   SETCALC(MapOut_next);
   MapOut_next(unit, 1);
 }
 
-void MapOut_next(MapperUnit* unit, int inNumSamples) {
+void MapOut_Dtor(MapOut* unit) { RTFree(unit->mWorld, unit->signalName); }
+
+void MapOut_next(MapOut* unit, int inNumSamples) {
   float val = IN0(0);
-  mpr_sig_set_value(unit->sig, 0, 1, MPR_FLT, &val);
+  taskQueue.push(
+      new Task([=]() { mpr_sig_set_value(unit->sig, 0, 1, MPR_FLT, &val); }));
 }
 
 // MapperEnabler
 
 void MapperEnabler_Ctor(MapperEnabler* unit) {
   if (!dev) {
+    // dev = mpr_dev_new("SuperCollider", 0);
     libmapperThreadHandle = new std::thread(libmapperThread);
   } else {
     Print("Mapper: libmapper already enabled.\n");
@@ -191,7 +223,7 @@ void MapperEnabler_Ctor(MapperEnabler* unit) {
 // MapperDisabler
 
 void MapperDisabler_Ctor(MapperDisabler* unit) {
-  if (dev) {
+  if (isReady) {
     mpr_dev_free(dev);
     dev = nullptr;
     libmapperThreadHandle->join();
@@ -201,8 +233,8 @@ void MapperDisabler_Ctor(MapperDisabler* unit) {
 
 PluginLoad(MapperUGens) {
   ft = inTable;
-  DefineSimpleUnit(MapIn);
-  DefineSimpleUnit(MapOut);
+  DefineDtorUnit(MapIn);
+  DefineDtorUnit(MapOut);
   DefineSimpleUnit(MapperEnabler);
   DefineSimpleUnit(MapperDisabler);
 }

@@ -7,8 +7,14 @@ project (${PROJECT})
 
 find_library(MAPPER_LIB mapper)
 if(NOT MAPPER_LIB)
-  message(FATAL_ERROR "mapper library not found")
+  message(FATAL_ERROR "libmapper library not found")
 endif()
+
+find_package(Boost 1.73.0 REQUIRED)
+if(NOT Boost_FOUND)
+  message(FATAL_ERROR "boost library not found")
+endif()
+include_directories(Boost_INCLUDE_DIRS)
 
 if (APPLE)
   set(CMAKE_INSTALL_PREFIX "${CMAKE_BINARY_DIR}")
@@ -26,7 +32,6 @@ include_directories(${SC_PATH}/plugin_interface)
 include_directories(${SC_PATH}/include/plugin_interface)
 include_directories(${SC_PATH}/include/common)
 include_directories(${SC_PATH}/common)
-
 
 include_directories(/usr/local/include)
 
@@ -119,7 +124,7 @@ if(MINGW)
 endif()
 
 add_library(${PROJECT} MODULE ${FILENAME})
-target_link_libraries(${PROJECT} ${MAPPER_LIB})
+target_link_libraries(${PROJECT} ${MAPPER_LIB} ${Boost_libraries})
 
 if(SUPERNOVA)
     add_library(${PROJECT}_supernova MODULE ${FILENAME})
