@@ -21,6 +21,7 @@
 
 #include <mapper/mapper.h>
 
+#include <atomic>
 #include <boost/lockfree/queue.hpp>
 #include <functional>
 #include <queue>
@@ -30,7 +31,7 @@
 
 static InterfaceTable* ft;
 static mpr_dev dev;
-static bool isReady;
+static std::atomic<bool> isReady;
 static std::thread* libmapperThreadHandle;
 
 typedef std::function<void()> Task;
