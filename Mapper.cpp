@@ -111,8 +111,28 @@ static void MapperUnit_bindToSignal(MapperUnit* unit, mpr_dir direction) {
     mpr_sig_set_cb(unit->sig, handler, flags);
 
     // Update signal metadata if signal range has changed
-    mpr_obj_set_prop(unit->sig, MPR_PROP_MIN, 0, 1, MPR_FLT, &unit->sigMin, 0);
-    mpr_obj_set_prop(unit->sig, MPR_PROP_MAX, 0, 1, MPR_FLT, &unit->sigMax, 0);
+    // mpr_obj_set_prop(unit->sig, MPR_PROP_MIN, 0, 1, MPR_FLT, &unit->sigMin,
+    // 1); mpr_obj_set_prop(unit->sig, MPR_PROP_MAX, 0, 1, MPR_FLT,
+    // &unit->sigMax, 1);
+
+    // Update maps containing signal
+    // mpr_list maps = mpr_sig_get_maps(unit->sig, MPR_DIR_ANY);
+    // while (maps) {
+    // // char expr[128];
+    // if (direction == MPR_DIR_IN) {
+    //   mpr_obj_set_prop(*maps, MPR_PROP_EXTRA, "var@dMin", 1, MPR_FLT,
+    //                    &unit->sigMin, 1);
+    //   mpr_obj_set_prop(*maps, MPR_PROP_EXTRA, "var@dMax", 1, MPR_FLT,
+    //                    &unit->sigMax, 1);
+    // } else {
+    //   mpr_obj_set_prop(*maps, MPR_PROP_EXTRA, "var@sMin", 1, MPR_FLT,
+    //                    &unit->sigMin, 1);
+    //   mpr_obj_set_prop(*maps, MPR_PROP_EXTRA, "var@sMax", 1, MPR_FLT,
+    //                    &unit->sigMax, 1);
+    // }
+    // mpr_obj_push(*maps);
+    // maps = mpr_list_get_next(maps);
+    // }
   } else {
     // Signal doesn't exist, create new
     Print("Creating signal '%s'\n", unit->signalName);
@@ -132,17 +152,16 @@ void MapIn_Ctor(MapIn* unit) {
   unit->sigMax = IN0(1);
 
   unit->signalNameSize = IN0(2);
-  const int signalNameAllocSize = (unit->signalNameSize + 3) * sizeof(char);
+  const int signalNameAllocSize = (unit->signalNameSize + 1) * sizeof(char);
 
-  char* chunk =
-      reinterpret_cast<char*>(RTAlloc(unit->mWorld, signalNameAllocSize));
+  void* chunk = RTAlloc(unit->mWorld, signalNameAllocSize);
 
   if (!chunk) {
     Print("MapIn: RT memory allocation failed\n");
     return;
   }
 
-  unit->signalName = chunk;
+  unit->signalName = reinterpret_cast<char*>(chunk);
   for (int i = 0; i < unit->signalNameSize; i++) {
     unit->signalName[i] = static_cast<char>(IN0(3 + i));
   }
@@ -150,7 +169,7 @@ void MapIn_Ctor(MapIn* unit) {
 
   if (dev) {
     taskQueue.push(
-        new Task([=]() { MapperUnit_bindToSignal(unit, MPR_DIR_IN); }));
+        new Task([unit]() { MapperUnit_bindToSignal(unit, MPR_DIR_IN); }));
   } else {
     Print("MapIn: libmapper not enabled\n");
   }
@@ -172,10 +191,9 @@ void MapOut_Ctor(MapOut* unit) {
   unit->sigMax = IN0(2);
 
   unit->signalNameSize = IN0(3);
-  const int signalNameAllocSize = (unit->signalNameSize + 4) * sizeof(char);
+  const int signalNameAllocSize = (unit->signalNameSize + 1) * sizeof(char);
 
-  char* chunk =
-      reinterpret_cast<char*>(RTAlloc(unit->mWorld, signalNameAllocSize));
+  void* chunk = RTAlloc(unit->mWorld, signalNameAllocSize);
 
   if (!chunk) {
     Print("MapOut: RT memory allocation failed\n");
@@ -183,7 +201,7 @@ void MapOut_Ctor(MapOut* unit) {
     return;
   }
 
-  unit->signalName = chunk;
+  unit->signalName = reinterpret_cast<char*>(chunk);
   for (int i = 0; i < unit->signalNameSize; i++) {
     unit->signalName[i] = static_cast<char>(IN0(4 + i));
   }
@@ -191,7 +209,7 @@ void MapOut_Ctor(MapOut* unit) {
 
   if (isReady) {
     taskQueue.push(
-        new Task([=]() { MapperUnit_bindToSignal(unit, MPR_DIR_IN); }));
+        new Task([unit]() { MapperUnit_bindToSignal(unit, MPR_DIR_OUT); }));
   } else {
     Print("MapOut: libmapper not enabled\n");
     SETCALC(Unit_next_nop);
