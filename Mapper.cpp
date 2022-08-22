@@ -22,7 +22,6 @@
 #include <mapper/mapper.h>
 
 #include <atomic>
-#include <boost/lockfree/queue.hpp>
 #include <functional>
 #include <queue>
 #include <thread>
@@ -34,9 +33,6 @@ static mpr_dev dev;
 static std::atomic<bool> isReady;
 static std::thread* libmapperThreadHandle;
 
-typedef std::function<void()> Task;
-static boost::lockfree::queue<Task*> taskQueue(128);
-
 void libmapperThread() {
   // TODO(mb): Add option for specifying device name with Mapper.enable(name)
   dev = mpr_dev_new("SuperCollider", 0);
@@ -47,19 +43,13 @@ void libmapperThread() {
   Print("Mapper: libmapper ready!\n");
   while (dev) {
     mpr_dev_poll(dev, 1);
-    // Execute tasks
-    Task* f;
-    if (taskQueue.pop(f)) {
-      (*f)();
-      delete f;
-    }
   }
 }
 
 struct MapperUnit : public Unit {
   int signalNameSize;
   char* signalName;
-  mpr_sig sig;
+  mpr_sig sig = nullptr;
   float sigMin = 0;
   float sigMax = 1;
   float val = 0;
@@ -84,36 +74,20 @@ static void MapOut_next(MapOut* unit, int inNumSamples);
 static void MapperEnabler_Ctor(MapperEnabler* unit);
 static void MapperDisabler_Ctor(MapperDisabler* unit);
 
-static void MapIn_signalUpdate(mpr_sig sig, mpr_sig_evt evt, mpr_id inst,
-                               int length, mpr_type type, const void* value,
-                               mpr_time time) {
-  MapIn* m = (MapIn*)mpr_obj_get_prop_as_ptr(sig, MPR_PROP_DATA, 0);
-  if (m) {
-    m->val = *reinterpret_cast<const float*>(value);
-  }
-}
-
 static void MapperUnit_bindToSignal(MapperUnit* unit, mpr_dir direction) {
   // Search for existing output signal with same name
   mpr_list sigs = mpr_dev_get_sigs(dev, direction);
   sigs = mpr_list_filter(sigs, MPR_PROP_NAME, 0, 1, MPR_STR, unit->signalName,
                          MPR_OP_EQ);
 
-  mpr_sig_handler* handler = direction == MPR_DIR_IN ? MapIn_signalUpdate : 0;
-  int flags = direction == MPR_DIR_IN ? MPR_SIG_UPDATE : 0;
-
   if (sigs) {
     // Signal exists, bind unit to signal
     unit->sig = *sigs;
 
-    // Update pointer for signal update callback
-    mpr_obj_set_prop(unit->sig, MPR_PROP_DATA, 0, 1, MPR_PTR, unit, 0);
-    mpr_sig_set_cb(unit->sig, handler, flags);
-
     // Update signal metadata if signal range has changed
-    // mpr_obj_set_prop(unit->sig, MPR_PROP_MIN, 0, 1, MPR_FLT, &unit->sigMin,
-    // 1); mpr_obj_set_prop(unit->sig, MPR_PROP_MAX, 0, 1, MPR_FLT,
-    // &unit->sigMax, 1);
+    mpr_obj_set_prop(unit->sig, MPR_PROP_MIN, 0, 1, MPR_FLT, &unit->sigMin, 1);
+    mpr_obj_set_prop(unit->sig, MPR_PROP_MAX, 0, 1, MPR_FLT, &unit->sigMax, 1);
+    mpr_obj_push(unit->sig);
 
     // Update maps containing signal
     // mpr_list maps = mpr_sig_get_maps(unit->sig, MPR_DIR_ANY);
@@ -135,10 +109,9 @@ static void MapperUnit_bindToSignal(MapperUnit* unit, mpr_dir direction) {
     // }
   } else {
     // Signal doesn't exist, create new
-    Print("Creating signal '%s'\n", unit->signalName);
+    Print("Mapper: Creating signal '%s'\n", unit->signalName);
     unit->sig = mpr_sig_new(dev, direction, unit->signalName, 1, MPR_FLT, 0,
-                            &unit->sigMin, &unit->sigMax, 0, handler, flags);
-    mpr_obj_set_prop(unit->sig, MPR_PROP_DATA, 0, 1, MPR_PTR, unit, 0);
+                            &unit->sigMin, &unit->sigMax, 0, 0, 0);
   }
 }
 
@@ -151,6 +124,7 @@ void MapIn_Ctor(MapIn* unit) {
   unit->sigMin = IN0(0);
   unit->sigMax = IN0(1);
 
+  // Set signal name
   unit->signalNameSize = IN0(2);
   const int signalNameAllocSize = (unit->signalNameSize + 1) * sizeof(char);
 
@@ -167,9 +141,9 @@ void MapIn_Ctor(MapIn* unit) {
   }
   unit->signalName[unit->signalNameSize] = 0;
 
+  // Bind to signal
   if (dev) {
-    taskQueue.push(
-        new Task([unit]() { MapperUnit_bindToSignal(unit, MPR_DIR_IN); }));
+    MapperUnit_bindToSignal(unit, MPR_DIR_IN);
   } else {
     Print("MapIn: libmapper not enabled\n");
   }
@@ -181,7 +155,23 @@ void MapIn_Dtor(MapIn* unit) { RTFree(unit->mWorld, unit->signalName); }
 
 void MapIn_next(MapIn* unit, int inNumSamples) {
   float* out = OUT(0);
-  *out = unit->val;
+
+  // Signal is not created yet
+  if (!unit->sig) {
+    *out = 0.f;
+  }
+  // Get signal value pointer
+  const float* val =
+      static_cast<const float*>(mpr_sig_get_value(unit->sig, 0, 0));
+
+  // Signal doesn't have a value yet
+  if (!val) {
+    *out = 0.f;
+    return;
+  }
+
+  // Set out value to signal value
+  *out = *val;
 }
 
 // MapOut
@@ -190,6 +180,7 @@ void MapOut_Ctor(MapOut* unit) {
   unit->sigMin = IN0(1);
   unit->sigMax = IN0(2);
 
+  // Set signal name
   unit->signalNameSize = IN0(3);
   const int signalNameAllocSize = (unit->signalNameSize + 1) * sizeof(char);
 
@@ -208,8 +199,7 @@ void MapOut_Ctor(MapOut* unit) {
   unit->signalName[unit->signalNameSize] = 0;
 
   if (isReady) {
-    taskQueue.push(
-        new Task([unit]() { MapperUnit_bindToSignal(unit, MPR_DIR_OUT); }));
+    MapperUnit_bindToSignal(unit, MPR_DIR_OUT);
   } else {
     Print("MapOut: libmapper not enabled\n");
     SETCALC(Unit_next_nop);
@@ -222,9 +212,14 @@ void MapOut_Ctor(MapOut* unit) {
 void MapOut_Dtor(MapOut* unit) { RTFree(unit->mWorld, unit->signalName); }
 
 void MapOut_next(MapOut* unit, int inNumSamples) {
+  // Signal is not ready yet
+  if (!unit->sig) {
+    return;
+  }
+
+  // Set output signal value
   float val = IN0(0);
-  taskQueue.push(
-      new Task([=]() { mpr_sig_set_value(unit->sig, 0, 1, MPR_FLT, &val); }));
+  mpr_sig_set_value(unit->sig, 0, 1, MPR_FLT, &val);
 }
 
 // MapperEnabler
