@@ -5,10 +5,35 @@ get_filename_component(PROJECT ${FILENAME} NAME_WE) #automatically sets project 
 message(STATUS "Project name is ${PROJECT}")
 project (${PROJECT})
 
-find_library(MAPPER_LIB mapper)
-if(NOT MAPPER_LIB)
-  message(FATAL_ERROR "libmapper library not found")
-endif()
+if (WIN32)
+# EDIT LIBMAPPER_DIR PATH BELOW BEFORE COMPILING FOR WINDOWS
+set(LIBMAPPER_DIR "C:/Users/brady/Documents/Github/libmapper")
+set(LIBMAPPER_BUILD_DIR "${LIBMAPPER_DIR}/build/Release")
+set(LIBLO_DIR "${LIBMAPPER_DIR}/build/liblo/liblo-master")
+set(LIBLO_BUILD_DIR "${LIBLO_DIR}/cmake/build/Release")
+set(LIBLO_INCLUDES "${LIBLO_DIR}/cmake/build;${LIBLO_DIR}")
+
+set(Liblo_LIB ${LIBLO_BUILD_DIR}/liblo.lib)
+set(Libmapper_LIB ${LIBMAPPER_BUILD_DIR}/libmapper.lib)
+mark_as_advanced(Liblo_LIB)
+mark_as_advanced(Libmapper_LIB)
+add_definitions(
+    -D_WINSOCK_DEPRECATED_NO_WARNINGS
+    -DHAVE_WINSOCK2_H
+    -DNODEFAULTLIB
+)
+include_directories(
+  "${LIBLO_INCLUDES}"
+  "${LIBMAPPER_DIR}/include"
+)
+set(MAPPER_LIB ${Liblo_LIB} ${Libmapper_LIB})
+else()
+  find_library(MAPPER_LIB mapper)
+  if(NOT MAPPER_LIB)
+    message(FATAL_ERROR "libmapper library not found")
+  endif(NOT MAPPER_LIB)
+  include_directories(/usr/local/include)
+endif(WIN32)
 
 if (APPLE)
   set(CMAKE_INSTALL_PREFIX "${CMAKE_BINARY_DIR}")
@@ -26,8 +51,6 @@ include_directories(${SC_PATH}/plugin_interface)
 include_directories(${SC_PATH}/include/plugin_interface)
 include_directories(${SC_PATH}/include/common)
 include_directories(${SC_PATH}/common)
-
-include_directories(/usr/local/include)
 
 if (CMAKE_SYSTEM_NAME MATCHES "Linux|.*BSD|DragonFly")
     set(INSTALL_DESTINATION "lib/SuperCollider/plugins")
@@ -120,18 +143,25 @@ endif()
 add_library(${PROJECT} MODULE ${FILENAME})
 target_link_libraries(${PROJECT} ${MAPPER_LIB} ${Boost_libraries})
 
+if(WIN32)
+  set_target_properties(${PROJECT} PROPERTIES LINK_FLAGS "/NODEFAULTLIB:MSVCRTD")
+  set_target_properties(${PROJECT} PROPERTIES LINK_FLAGS "/INCREMENTAL:NO")
+endif(WIN32)
+
 if(SUPERNOVA)
     add_library(${PROJECT}_supernova MODULE ${FILENAME})
     target_link_libraries(${PROJECT}_supernova ${MAPPER_LIB})
     set_property(TARGET ${PROJECT}_supernova
                  PROPERTY COMPILE_DEFINITIONS SUPERNOVA)
+    if(NOT WIN32)
     install(TARGETS ${PROJECT}_supernova
             DESTINATION ${INSTALL_DESTINATION}/${PLUGIN_DIR})
+    endif(NOT WIN32)
 endif()
 
-
+if(NOT WIN32)
 install(TARGETS ${PROJECT}
         DESTINATION ${INSTALL_DESTINATION}/${PLUGIN_DIR})
-
 install(DIRECTORY "sc/" DESTINATION "${INSTALL_DESTINATION_DISTRO}"
         PATTERN "*")
+endif(NOT WIN32)
