@@ -1,7 +1,7 @@
 Mapper : UGen {
-    *enable {
+    *enable { arg name = "SuperCollider";
         play {
-            MapperEnabler.kr;
+            MapperEnabler.kr(name);
             FreeSelf.kr(Impulse.kr(1));
         }
     }
@@ -30,8 +30,9 @@ MapOut : UGen {
 }
 
 MapperEnabler : UGen {
-    *kr {
-        this.new1('control');
+    *kr { arg name;
+        var ascii = name.ascii;
+        this.new1('control', *[ascii.size].addAll(ascii));
         ^0.0;
     }
 }

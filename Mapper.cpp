@@ -33,9 +33,8 @@ static mpr_dev dev;
 static std::atomic<bool> isReady;
 static std::thread* libmapperThreadHandle;
 
-void libmapperThread() {
-  // TODO(mb): Add option for specifying device name with Mapper.enable(name)
-  dev = mpr_dev_new("SuperCollider", 0);
+void libmapperThread(char* deviceName) {
+  dev = mpr_dev_new(deviceName, 0);
   while (!mpr_dev_get_is_ready(dev)) {
     mpr_dev_poll(dev, 10);
   }
@@ -46,7 +45,7 @@ void libmapperThread() {
   }
 }
 
-struct MapperUnit : public Unit {
+struct MapperSignalUnit : public Unit {
   int signalNameSize;
   char* signalName;
   mpr_sig sig = nullptr;
@@ -55,9 +54,14 @@ struct MapperUnit : public Unit {
   float val = 0;
 };
 
-struct MapIn : public MapperUnit {};
-struct MapOut : public MapperUnit {};
-struct MapperEnabler : public Unit {};
+struct MapperDeviceUnit : public Unit {
+  int deviceNameSize;
+  char* deviceName;
+};
+
+struct MapIn : public MapperSignalUnit {};
+struct MapOut : public MapperSignalUnit {};
+struct MapperEnabler : public MapperDeviceUnit {};
 struct MapperDisabler : public Unit {};
 
 // Empty DSP function
@@ -74,7 +78,7 @@ static void MapOut_next(MapOut* unit, int inNumSamples);
 static void MapperEnabler_Ctor(MapperEnabler* unit);
 static void MapperDisabler_Ctor(MapperDisabler* unit);
 
-static void MapperUnit_bindToSignal(MapperUnit* unit, mpr_dir direction) {
+static void MapperSignalUnit_bindToSignal(MapperSignalUnit* unit, mpr_dir direction) {
   // Search for existing output signal with same name
   mpr_list sigs = mpr_dev_get_sigs(dev, direction);
   sigs = mpr_list_filter(sigs, MPR_PROP_NAME, 0, 1, MPR_STR, unit->signalName,
@@ -143,7 +147,7 @@ void MapIn_Ctor(MapIn* unit) {
 
   // Bind to signal
   if (dev) {
-    MapperUnit_bindToSignal(unit, MPR_DIR_IN);
+    MapperSignalUnit_bindToSignal(unit, MPR_DIR_IN);
   } else {
     Print("MapIn: libmapper not enabled\n");
   }
@@ -199,7 +203,7 @@ void MapOut_Ctor(MapOut* unit) {
   unit->signalName[unit->signalNameSize] = 0;
 
   if (isReady) {
-    MapperUnit_bindToSignal(unit, MPR_DIR_OUT);
+    MapperSignalUnit_bindToSignal(unit, MPR_DIR_OUT);
   } else {
     Print("MapOut: libmapper not enabled\n");
     SETCALC(Unit_next_nop);
@@ -226,8 +230,23 @@ void MapOut_next(MapOut* unit, int inNumSamples) {
 
 void MapperEnabler_Ctor(MapperEnabler* unit) {
   if (!dev) {
-    // dev = mpr_dev_new("SuperCollider", 0);
-    libmapperThreadHandle = new std::thread(libmapperThread);
+    // Set device name
+    unit->deviceNameSize = IN0(0);
+    const int deviceNameAllocSize = (unit->deviceNameSize + 1) * sizeof(char);
+
+    void* chunk = RTAlloc(unit->mWorld, deviceNameAllocSize);
+    if (!chunk) {
+      Print("MapOut: RT memory allocation failed\n");
+      SETCALC(Unit_next_nop);
+      return;
+    }
+
+    unit->deviceName = reinterpret_cast<char*>(chunk);
+    for (int i = 0; i < unit->deviceNameSize; i++) {
+      unit->deviceName[i] = static_cast<char>(IN0(1 + i));
+    }
+    unit->deviceName[unit->deviceNameSize] = 0;
+    libmapperThreadHandle = new std::thread(libmapperThread, unit->deviceName);
   } else {
     Print("Mapper: libmapper already enabled.\n");
   }
