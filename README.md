@@ -26,10 +26,17 @@ cmake --build . --target install
 ```
 
 ### Windows
+
 ```
 git clone https://github.com/libmapper/MapperUGen.git
-git config --global url."https://".insteadOf git://
 cd MapperUGen
+git config --global url."https://".insteadOf git://
+git submodule update --init --recursive
+```
+
+Now edit the CMakeLists.txt LIBMAPPER_DIR and LIBLO_DIR paths to match with your local libmapper paths. For libmapper installation help, consult the instructions [here](https://github.com/libmapper/libmapper/blob/main/doc/how_to_compile_and_run.md). Finally:
+
+```
 mkdir build
 cd build
 cmake -DSUPERNOVA=ON ..
