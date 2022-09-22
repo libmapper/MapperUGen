@@ -3,7 +3,7 @@ summary:: UGen for using libmapper with SuperCollider server
 categories:: UGens>Synth control
 
 DESCRIPTION::
-Creates a libmapper devices on the SuperCollider server. Input and output signals can be created with the MapIn and MapOut. The signals stay active util the libmapper device is destroyed either by rebooting the server or calling Mapper.disable.
+Creates a libmapper devices on the SuperCollider server. Input and output signals can be created with the MapIn and MapOut, or a mappable Bus can be created for a signal with Mapper.makeInSignalBus(). The signals stay active util the libmapper device is destroyed either by rebooting the server or calling Mapper.disable.
 
 CLASSMETHODS::
 private:: categories
@@ -32,5 +32,15 @@ s.waitForBoot({
 {
     RLPF.ar(Saw.ar(50), MapIn.kr(\ffreq, 20, 20000), 0.2).dup * 0.2;
 }.play
+)
+
+// Or, use makeInSignalBus to map a Bus directly to a Synth argument
+(
+SynthDef(\SineGenerator, { |out=0, freq=200, gain=0|
+    Out.ar( out, SinOsc.ar(freq, 0, gain) )
+}).add;
+a = Synth(\SineGenerator);
+var freqBus = Mapper.makeInSignalBus(s, "frequency", 10, 10000);
+a.map(\freq, freqBus);
 )
 ::
