@@ -14,7 +14,8 @@ EXAMPLES::
 code::
 (
 s.waitForBoot({
-    Mapper.enable;
+    // Create and optionally name your libmapper device
+    Mapper.enable("MySuperColliderDevice");
 });
 )
 
