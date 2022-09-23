@@ -12,6 +12,13 @@ Mapper : UGen {
             FreeSelf.kr(Impulse.kr(1));
         }
     }
+
+    *makeInSignalBus {
+        arg server, name, min, max;
+        var bus = Bus.control(server);
+        {Out.kr(bus.index, MapIn.kr(name, min, max))}.play;
+        ^bus;
+    }
 }
 
 MapIn : UGen {
