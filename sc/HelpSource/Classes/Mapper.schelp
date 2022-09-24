@@ -3,7 +3,7 @@ summary:: UGen for using libmapper with SuperCollider server
 categories:: UGens>Synth control
 
 DESCRIPTION::
-Creates a libmapper devices on the SuperCollider server. Input and output signals can be created with the MapIn and MapOut, or a mappable Bus can be created for a signal with Mapper.makeInSignalBus(). The signals stay active util the libmapper device is destroyed either by rebooting the server or calling Mapper.disable.
+Creates a libmapper devices on the SuperCollider server. Input and output signals can be created with the MapIn and MapOut, or a mappable Bus can be created for an input signal with Mapper.makeInSignalBus(). The signals stay active util the libmapper device is destroyed either by rebooting the server or calling Mapper.disable.
 
 CLASSMETHODS::
 private:: categories
@@ -13,35 +13,35 @@ METHOD:: enable, disable
 EXAMPLES::
 code::
 (
+// Just a rudimentary SynthDef we'll use below
+SynthDef(\SineGenerator, { |out=0, freq=200, gain=0|
+            Out.ar( out, SinOsc.ar(freq, 0, gain) )
+        }).add;
+)
+
+(
 s.waitForBoot({
     // Create and optionally name your libmapper device
     Mapper.enable("MySuperColliderDevice");
+
+    // Wait for libmapper to fully boot and create/map signals
+    Mapper.waitForBoot({
+        // Send output signal from SuperCollider
+        { MapOut.kr(SinOsc.kr(1), \sine, -1, 1) }.play;
+
+        // Receive input signal to SuperCollider
+        { RLPF.ar(Saw.ar(50), MapIn.kr(\ffreq, 20, 20000), 0.2).dup * 0.2 }.play;
+
+        // Or, use makeInSignalBus to map an input signal directly to a Synth argument using a Bus
+        a = Synth(\SineGenerator);
+        ~freqBus = Mapper.makeInSignalBus(s, "ffreq2", 10, 10000);
+        a.map(\freq, ~freqBus);
+    });
 });
 )
 
-// wait for libmapper ready message
-
-// Output signal
 (
-{
-    MapOut.kr(SinOsc.kr(1), \sine, -1, 1);
-}.play;
-)
-
-// Input signal
-(
-{
-    RLPF.ar(Saw.ar(50), MapIn.kr(\ffreq, 20, 20000), 0.2).dup * 0.2;
-}.play
-)
-
-// Or, use makeInSignalBus to map a Bus directly to a Synth argument
-(
-SynthDef(\SineGenerator, { |out=0, freq=200, gain=0|
-    Out.ar( out, SinOsc.ar(freq, 0, gain) )
-}).add;
-a = Synth(\SineGenerator);
-var freqBus = Mapper.makeInSignalBus(s, "frequency", 10, 10000);
-a.map(\freq, freqBus);
+// Disable when we're done
+Mapper.disable;
 )
 ::

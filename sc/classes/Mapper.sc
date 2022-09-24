@@ -13,6 +13,13 @@ Mapper : UGen {
         }
     }
 
+    *waitForBoot { arg onComplete;
+        fork {
+            { FreeSelf.kr(MapperIsReady.kr) }.play.waitForFree;
+            onComplete.value;
+        };
+    }
+
     *makeInSignalBus {
         arg server, name, min, max;
         var bus = Bus.control(server);
@@ -48,5 +55,11 @@ MapperDisabler : UGen {
     *kr {
         this.new1('control');
         ^0.0;
+    }
+}
+
+MapperIsReady : UGen {
+    *kr {
+        ^this.new1('control');
     }
 }

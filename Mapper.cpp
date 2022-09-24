@@ -59,10 +59,15 @@ struct MapperDeviceUnit : public Unit {
   char* deviceName;
 };
 
+struct MapperIsReadyUnit : public Unit {
+  bool shouldSendNeg = true; // Send -1 the first frame to trigger free when ready
+};
+
 struct MapIn : public MapperSignalUnit {};
 struct MapOut : public MapperSignalUnit {};
 struct MapperEnabler : public MapperDeviceUnit {};
 struct MapperDisabler : public Unit {};
+struct MapperIsReady : public MapperIsReadyUnit {};
 
 // Empty DSP function
 static void Unit_next_nop(Unit* unit, int inNumSamples) {}
@@ -77,6 +82,10 @@ static void MapOut_next(MapOut* unit, int inNumSamples);
 
 static void MapperEnabler_Ctor(MapperEnabler* unit);
 static void MapperDisabler_Ctor(MapperDisabler* unit);
+
+static void MapperIsReady_Ctor(MapperIsReady* unit);
+static void MapperIsReady_Dtor(MapperIsReady* unit);
+static void MapperIsReady_next(MapperIsReady* unit, int inNumSamples);
 
 static void MapperSignalUnit_bindToSignal(MapperSignalUnit* unit, mpr_dir direction) {
   // Search for existing output signal with same name
@@ -264,10 +273,28 @@ void MapperDisabler_Ctor(MapperDisabler* unit) {
   SETCALC(Unit_next_nop);
 }
 
+// MapperIsReady
+
+void MapperIsReady_Ctor(MapperIsReady* unit) {
+  SETCALC(MapperIsReady_next);
+  MapperIsReady_next(unit, 1);
+}
+void MapperIsReady_Dtor(MapperIsReady* unit) {}
+void MapperIsReady_next(MapperIsReady* unit, int inNumSamples) {
+  float* out = OUT(0);
+  if (unit->shouldSendNeg) {
+    *out = -1.0f;
+    unit->shouldSendNeg = false; // Sent -1 once, send regular value now
+  } else {
+    *out = (isReady) ? 1.0f : -1.0f;
+  }
+}
+
 PluginLoad(MapperUGens) {
   ft = inTable;
   DefineDtorUnit(MapIn);
   DefineDtorUnit(MapOut);
   DefineSimpleUnit(MapperEnabler);
   DefineSimpleUnit(MapperDisabler);
+  DefineDtorUnit(MapperIsReady);
 }
