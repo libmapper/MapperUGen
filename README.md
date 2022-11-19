@@ -8,6 +8,9 @@ A SuperCollider UGen for using libmapper
 
 ## Compile from source
 * Build and install [libmapper](https://github.com/libmapper/libmapper)
+
+* Note: when cloning supercollider below, if the cloning hangs just execute `git config --global url."https://".insteadOf git://` to fix the issue. It's a known issue with older versions of the supercollider sdk.
+
 ### GNU/Linux
 ```
 git clone https://github.com/libmapper/MapperUGen.git
