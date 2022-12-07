@@ -171,7 +171,7 @@ void MapIn_next(MapIn* unit, int inNumSamples) {
 
   // Signal is not created yet
   if (!unit->sig) {
-    *out = 0.f;
+    *out = unit->sigMin;
   }
   // Get signal value pointer
   const float* val =
@@ -179,7 +179,7 @@ void MapIn_next(MapIn* unit, int inNumSamples) {
 
   // Signal doesn't have a value yet
   if (!val) {
-    *out = 0.f;
+    *out = unit->sigMin;
     return;
   }
 
